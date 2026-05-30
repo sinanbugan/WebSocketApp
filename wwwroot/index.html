@@ -1,0 +1,74 @@
+ASPNETCORE_URLS="http://127.0.0.1:5001" dotnet run
+# veya
+dotnet run -- --urls "http://127.0.0.1:5001"<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WebSocket Ride - Test Client</title>
+  <style>body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:20px}button{margin:4px}</style>
+</head>
+<body>
+  <h1>WebSocket Ride - Test Client</h1>
+
+  <h2>Driver</h2>
+  <button id="connectDriver">Connect Driver</button>
+  <button id="sendOnceDriver">Send Location Once</button>
+  <button id="startAuto">Start Auto Send</button>
+  <button id="stopAuto">Stop Auto Send</button>
+
+  <h2>Passenger</h2>
+  <button id="connectPassenger">Connect Passenger</button>
+  <div id="messages" style="white-space:pre-wrap;margin-top:8px;border:1px solid #ddd;padding:8px;max-width:700px"></div>
+
+  <script>
+    let driverSocket = null;
+    let passengerSocket = null;
+    let autoInterval = null;
+
+    function wsUrl(path){
+      const loc = window.location;
+      const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+      return protocol + '//' + loc.host + path;
+    }
+
+    document.getElementById('connectDriver').onclick = () => {
+      if (driverSocket && driverSocket.readyState === WebSocket.OPEN) return alert('Driver already connected');
+      driverSocket = new WebSocket(wsUrl('/ws/driver'));
+      driverSocket.onopen = () => console.log('Driver connected');
+      driverSocket.onclose = () => console.log('Driver disconnected');
+      driverSocket.onerror = e => console.error(e);
+    };
+
+    document.getElementById('sendOnceDriver').onclick = () => {
+      if (!driverSocket || driverSocket.readyState !== WebSocket.OPEN) return alert('Driver not connected');
+      const loc = { lat: 41.0 + Math.random()*0.1, lon: 29.0 + Math.random()*0.1, ts: Date.now() };
+      driverSocket.send(JSON.stringify(loc));
+    };
+
+    document.getElementById('startAuto').onclick = () => {
+      if (!driverSocket || driverSocket.readyState !== WebSocket.OPEN) return alert('Driver not connected');
+      if (autoInterval) return;
+      autoInterval = setInterval(() => {
+        const loc = { lat: 41.0 + Math.random()*0.1, lon: 29.0 + Math.random()*0.1, ts: Date.now() };
+        driverSocket.send(JSON.stringify(loc));
+      }, 1500);
+    };
+
+    document.getElementById('stopAuto').onclick = () => { clearInterval(autoInterval); autoInterval = null; };
+
+    document.getElementById('connectPassenger').onclick = () => {
+      if (passengerSocket && passengerSocket.readyState === WebSocket.OPEN) return alert('Passenger already connected');
+      passengerSocket = new WebSocket(wsUrl('/ws/passenger'));
+      passengerSocket.onopen = () => append('Passenger connected');
+      passengerSocket.onmessage = ev => append('Received: ' + ev.data);
+      passengerSocket.onclose = () => append('Passenger disconnected');
+      passengerSocket.onerror = e => append('Error: ' + e.message);
+    };
+
+    function append(text){
+      const d = document.getElementById('messages');
+      d.textContent = new Date().toLocaleTimeString() + ' — ' + text + '\n' + d.textContent;
+    }
+  </script>
+</body>
+</html>
